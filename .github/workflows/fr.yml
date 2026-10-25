@@ -1,0 +1,33 @@
+name: Historique carburants France
+on:
+  schedule:
+    - cron: '17 4 * * *'   # chaque nuit, après la publication du fichier officiel de la veille
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['scripts/**', '.github/workflows/fr.yml']
+permissions:
+  contents: write
+concurrency:
+  group: fr
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Construire l'historique
+        run: python scripts/build_fr.py site
+      - name: Publier sur la branche data
+        run: |
+          cd site
+          cp ../README.md . 2>/dev/null || true
+          git init -q -b data
+          git add -A
+          git -c user.name="mes-marches" -c user.email="actions@github.com" commit -qm "Données du $(jq -r .maj fr/index.json)"
+          git push -f -q "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" data
+          du -sh fr; ls fr/s | wc -l
